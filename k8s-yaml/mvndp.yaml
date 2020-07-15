@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mvn-dp
+spec:
+  selector:
+    matchLabels:
+      run: mvn-demo
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: mvn-demo
+    spec:
+      containers:
+      - name: mvndemo
+        image: 192.168.0.193:59999/mvndemo
+        ports:
+        - containerPort: 8080

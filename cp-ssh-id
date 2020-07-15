@@ -1,0 +1,7 @@
+#!/bin/bash
+ii=0
+while read -r name ip; do
+  ii=`expr $ii + 1`
+  echo "${ii}:${ip}"
+  sshpass -p dataSharing ssh-copy-id -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa.pub root@$ip
+done < $1

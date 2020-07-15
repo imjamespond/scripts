@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mvn-svc
+  labels:
+    run: mvn-demo
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+  type: NodePort
+  selector:
+    run: mvn-demo
