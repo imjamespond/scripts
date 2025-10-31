@@ -7,3 +7,5 @@ ansible -i hosts.ini all -m command -a "uptime"
 ansible -i hosts.ini --limit vps -m ping
 
 ansible -i hosts.ini vps -m command -a "ls ~"
+
+ansible-playbook -i hosts.ini clear-download.yml -e "dir=tools" -l co

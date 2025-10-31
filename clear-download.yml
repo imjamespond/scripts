@@ -1,0 +1,46 @@
+---
+- name: Test
+  hosts: vps
+  gather_facts: no
+  vars:
+    local_path: "$HOME/{{ dir }}"
+
+  tasks:
+    - name: 检查必要变量是否已定义
+      assert:
+        that:
+          - dir is defined
+        fail_msg: "必须提供 'dir' 变量。"
+
+    - name: Find all files
+      ansible.builtin.command: ls -l "{{ local_path }}"
+      register: ls_output
+      changed_when: false
+
+    - name: Show file paths
+      debug:
+        var: ls_output.stdout_lines
+
+    - name: Find files that are NOT .crdownload (to delete)
+      ansible.builtin.find:
+        paths: "{{ local_path }}"
+        file_type: file  # 只列出文件，不包括目录
+        excludes: "*.crdownload"   # 排除 .crdownload 文件
+      register: files_to_delete
+
+    - name: Files to delete
+      ansible.builtin.debug:
+        msg: "Found file: {{ item.path }}"
+      loop: "{{ files_to_delete.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"  # 或直接用 item.path
+
+    - name: Delete non-.crdownload files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent # 安全删除文件（不会报错如果文件已不存在）
+      loop: "{{ files_to_delete.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"  # 或直接用 item.path
+      when: files_to_delete.files | length > 0 # 自动忽略
+      
