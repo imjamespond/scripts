@@ -1,7 +1,7 @@
 # npm run build 
 
 source $ANSIBLE_PATH/.venv/bin/activate
-cd ./ansible
+cd "$(dirname "$0")"
 
 ansible-playbook -i inventory.ini python.yml --limit mcd-local
 
