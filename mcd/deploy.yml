@@ -1,39 +1,74 @@
 ---
 - name: 部署应用目录到远程主机
   hosts: all
-  gather_facts: no
+  gather_facts: no # 禁用事实收集可以加快Playbook初始速度 [2](@ref)
   vars:
     # 默认不备份，可通过 -e bak=true 覆盖
     bak: false
-    target_path: "{{ target }}"   # 对应脚本中的 Target
+    target_path: "{{ target }}" # 对应脚本中的 Target
     local_dist_path: "../dist/{{ dir }}"
+    local_archive_path: "../dist/{{ dir }}-{{ timestamp }}.tar.gz"
 
   tasks:
-    # - name: 检查必要变量是否已定义
-    #   assert:
-    #     that:
-    #       - dir is defined
-    #       - target is defined
-    #     fail_msg: "必须提供 'dir' 和 'target' 变量。"
+    - name: 检查必要变量是否已定义
+      assert:
+        that:
+          - dir is defined
+          - target is defined
+        fail_msg: "必须提供 'dir' 和 'target' 变量。"
 
-    # - name: 获取当前时间戳
-    #   set_fact:
-    #     timestamp: "{{ lookup('pipe', 'date +%F-%H-%M') }}"
-    #     tmp_dir_name: "{{ dir }}-{{ lookup('pipe', 'date +%F-%H-%M') }}"
+    - name: 获取当前时间戳
+      set_fact:
+        timestamp: "{{ lookup('pipe', 'date +%F-%H-%M') }}"
+        tmp_dir_name: "{{ dir }}-{{ lookup('pipe', 'date +%F-%H-%M') }}"
 
+    - name: 如果启用了备份，则重命名当前目录为备份
+      command: mv "{{ target_path }}/{{ dir }}" "{{ target_path }}/{{ tmp_dir_name }}"
+      when: bak | bool
+      args:
+        chdir: "{{ target_path }}"
+        creates: "{{ target_path }}/{{ tmp_dir_name }}" # 避免重复执行
 
-    # - name: 如果启用了备份，则重命名当前目录为备份
-    #   command: mv "{{ target_path }}/{{ dir }}" "{{ target_path }}/{{ tmp_dir_name }}"
-    #   when: bak | bool
-    #   args:
-    #     chdir: "{{ target_path }}"
-    #     creates: "{{ target_path }}/{{ tmp_dir_name }}"  # 避免重复执行
+    - name: 如果未启用备份，则删除当前目录
+      file:
+        path: "{{ target_path }}/{{ dir }}"
+        state: absent
+      when: not (bak | bool)
 
-    # - name: 如果未启用备份，则删除当前目录
-    #   file:
-    #     path: "{{ target_path }}/{{ dir }}"
-    #     state: absent
-    #   when: not (bak | bool)
+    - name: 在控制节点上将本地目录打包压缩
+      archive:
+        path: "{{ local_dist_path }}"
+        dest: "{{ local_archive_path }}"
+        format: gz
+      delegate_to: localhost # 此任务在Ansible控制节点上执行
+      run_once: true # 只需执行一次
+
+    - name: 将压缩包传输到远程主机
+      copy:
+        src: "{{ local_archive_path }}"
+        dest: "/tmp/{{ dir }}.tar.gz"
+        mode: "0644"
+
+    - name: 在远程主机上解压压缩包到目标路径
+      unarchive:
+        src: "/tmp/{{ dir }}.tar.gz"
+        dest: "{{ target_path }}"
+        remote_src: yes # 说明src在远程主机上，直接解压而不需再次传输 [6](@ref)
+        owner: "{{ ansible_user | default(omit) }}" # 设置文件属主，可选
+        group: "{{ ansible_user | default(omit) }}" # 设置文件属组，可选
+        mode: "0755"
+
+    - name: （可选）清理远程主机上的临时压缩包
+      file:
+        path: "/tmp/{{ dir }}.tar.gz"
+        state: absent
+
+    - name: （可选）清理控制节点上的临时压缩包
+      file:
+        path: "{{ local_archive_path }}"
+        state: absent
+      delegate_to: localhost
+      run_once: true
 
     # - name: 将本地 dist 目录复制到远程主机的 /tmp 目录
     #   copy:
